@@ -99,7 +99,7 @@ export class VectorizeService {
     
     let commonWords = 0;
     for (const word of allWords) {
-      if (words1.includes(word) && words2.includes(word)) {
+      if (words1.includes(word as string) && words2.includes(word as string)) {
         commonWords++;
       }
     }
