@@ -4,288 +4,104 @@ import { useChat } from "@ai-sdk/react";
 
 // Function to format travel advisory text for better readability
 function formatTravelAdvisoryText(text: string) {
-  // Remove the header and clean up basic formatting, but preserve all content
+  // Minimal cleaning - just remove the header and basic markdown formatting
   let cleanText = text
     .replace(/Travel Advisory Information for [^:]+:\s*/i, '')
-    .replace(/#{1,6}\s/g, '') // Remove markdown headers only
+    .replace(/\*\*/g, '') // Remove bold markdown
+    .replace(/\*/g, '') // Remove italic markdown
+    .replace(/#{1,6}\s/g, '') // Remove markdown headers
     .trim();
 
-  // Remove weather information that shouldn't be in travel advisory sections
-  // Be more aggressive about removing weather data from travel advisories
+  // Remove weather information that shouldn't be in travel advisories
+  // But be more selective - only remove the weather section header and description
   cleanText = cleanText
-    .replace(/Current Weather Conditions in [^:]+:[\s\S]*?(?=\n\n|$)/gi, '')
-    .replace(/Weather data retrieved for [^:]+:[\s\S]*?(?=\n\n|$)/gi, '')
-    .replace(/This weather information can help you plan[\s\S]*?(?=\n\n|$)/gi, '')
-    .replace(/Temperature:|Condition:|Humidity:|Wind Speed:/gi, '')
-    .replace(/\d+°C|partly cloudy|sunny|cloudy|rainy/gi, '')
-    .replace(/\*\*Mumbai\*\*|\*\*Delhi\*\*|\*\*Bangalore\*\*/gi, '')
+    .replace(/Current Weather Conditions in [^:]+:[\s\S]*$/gi, '') // Remove everything from weather header to end
+    .replace(/Weather data retrieved for [^:]+:[\s\S]*$/gi, '')
+    .replace(/This weather information can help you plan[\s\S]*$/gi, '')
+    // Clean up extra whitespace and empty lines
+    .replace(/\n\s*\n\s*\n/g, '\n\n')
+    .replace(/^\s*\n+/g, '')
     .trim();
 
-  // Only split on very clear, major section boundaries that are consistent
-  const majorSections = [];
+  // Extract travel advisory level if present
+  const levelMatch = cleanText.match(/^(Level [1-4]:[^.\n]+)/i);
+  const advisoryLevel = levelMatch ? levelMatch[1].trim() : null;
   
-  // Look for travel advisory level first
-  const levelMatch = cleanText.match(/(Level \d+[^.]*\.)/i);
-  if (levelMatch) {
-    majorSections.push({
-      type: 'level',
-      title: 'Travel Advisory Level',
-      content: levelMatch[1].trim()
-    });
-    cleanText = cleanText.replace(levelMatch[0], '').trim();
+  // Remove the level from the main content if found
+  if (advisoryLevel) {
+    cleanText = cleanText.replace(/^Level [1-4]:[^.\n]+\.?\s*/i, '').trim();
   }
 
-  // Split the remaining content into logical paragraphs/sections
-  // Use double line breaks as natural section breaks
-  const paragraphs = cleanText
-    .split(/\n\s*\n/)
-    .map(p => p.replace(/\s+/g, ' ').trim())
-    .filter(p => p.length > 20 && !p.match(/\d+°C|humidity|wind speed|weather/i)); // Filter out weather fragments
-
-  // Group paragraphs by likely topic based on keywords, but keep original text intact
-  const sections = {
-    safety: [],
-    crime: [],
-    health: [],
-    entry: [],
-    regional: [],
-    recommendations: [],
-    general: []
+  // Get level-specific styling
+  const getLevelStyling = (level: string) => {
+    const levelNum = level.match(/Level (\d)/)?.[1];
+    switch (levelNum) {
+      case '1':
+        return {
+          bgColor: 'bg-green-50',
+          borderColor: 'border-green-500',
+          levelBg: 'bg-green-500',
+          levelText: 'text-white',
+          icon: '✅'
+        };
+      case '2':
+        return {
+          bgColor: 'bg-yellow-50',
+          borderColor: 'border-yellow-500',
+          levelBg: 'bg-yellow-500',
+          levelText: 'text-white',
+          icon: '⚠️'
+        };
+      case '3':
+        return {
+          bgColor: 'bg-orange-50',
+          borderColor: 'border-orange-500',
+          levelBg: 'bg-orange-500',
+          levelText: 'text-white',
+          icon: '🚨'
+        };
+      case '4':
+        return {
+          bgColor: 'bg-red-50',
+          borderColor: 'border-red-500',
+          levelBg: 'bg-red-500',
+          levelText: 'text-white',
+          icon: '🚫'
+        };
+      default:
+        return {
+          bgColor: 'bg-blue-50',
+          borderColor: 'border-blue-500',
+          levelBg: 'bg-blue-500',
+          levelText: 'text-white',
+          icon: '📋'
+        };
+    }
   };
 
-  paragraphs.forEach(paragraph => {
-    const lowerParagraph = paragraph.toLowerCase();
-    
-    // Skip if this looks like weather data
-    if (lowerParagraph.includes('temperature') || 
-        lowerParagraph.includes('humidity') || 
-        lowerParagraph.includes('wind speed') ||
-        lowerParagraph.match(/\d+°c/)) {
-      return;
-    }
-    
-    // More specific categorization to avoid misclassification
-    if (lowerParagraph.includes('crime') || lowerParagraph.includes('terrorism') || lowerParagraph.includes('violence') || lowerParagraph.includes('terrorist')) {
-      sections.crime.push(paragraph);
-    } else if (lowerParagraph.includes('vaccination') || lowerParagraph.includes('disease') || lowerParagraph.includes('medical care') || lowerParagraph.includes('health risk') || lowerParagraph.includes('cdc')) {
-      sections.health.push(paragraph);
-    } else if (lowerParagraph.includes('visa') || lowerParagraph.includes('passport') || lowerParagraph.includes('entry requirement') || lowerParagraph.includes('border crossing')) {
-      sections.entry.push(paragraph);
-    } else if (lowerParagraph.includes('do not travel') || lowerParagraph.includes('avoid') || lowerParagraph.includes('regional warning') || lowerParagraph.includes('restricted area')) {
-      sections.regional.push(paragraph);
-    } else if (lowerParagraph.includes('recommend') || lowerParagraph.includes('should') || lowerParagraph.includes('enroll') || lowerParagraph.includes('step') || lowerParagraph.includes('satellite phone') || lowerParagraph.includes('travel tip') || lowerParagraph.includes('contingency plan')) {
-      sections.recommendations.push(paragraph);
-    } else if (lowerParagraph.includes('safety') || lowerParagraph.includes('security') || lowerParagraph.includes('emergency') || lowerParagraph.includes('government services')) {
-      sections.safety.push(paragraph);
-    } else {
-      sections.general.push(paragraph);
-    }
-  });
+  const styling = advisoryLevel ? getLevelStyling(advisoryLevel) : getLevelStyling('');
 
-  // Build the final sections array, preserving original text
-  const finalSections = [];
-  
-  // Add the level section if it exists
-  if (majorSections.length > 0) {
-    finalSections.push(...majorSections);
-  }
-
-  // Add other sections only if they have content
-  if (sections.safety.length > 0) {
-    finalSections.push({
-      type: 'safety',
-      title: 'Safety & Security Information',
-      content: sections.safety.join('\n\n')
-    });
-  }
-
-  if (sections.crime.length > 0) {
-    finalSections.push({
-      type: 'security',
-      title: 'Crime & Terrorism',
-      content: sections.crime.join('\n\n')
-    });
-  }
-
-  if (sections.regional.length > 0) {
-    finalSections.push({
-      type: 'regional',
-      title: 'Regional Warnings & Restricted Areas',
-      content: sections.regional.join('\n\n')
-    });
-  }
-
-  if (sections.recommendations.length > 0) {
-    finalSections.push({
-      type: 'recommendations',
-      title: 'Travel Recommendations',
-      content: sections.recommendations.join('\n\n')
-    });
-  }
-
-  if (sections.health.length > 0) {
-    finalSections.push({
-      type: 'health',
-      title: 'Health & Medical Information',
-      content: sections.health.join('\n\n')
-    });
-  }
-
-  if (sections.entry.length > 0) {
-    finalSections.push({
-      type: 'entry',
-      title: 'Entry Requirements',
-      content: sections.entry.join('\n\n')
-    });
-  }
-
-  // Combine all general content into Additional Information, but filter out weather
-  if (sections.general.length > 0) {
-    const cleanGeneral = sections.general
-      .filter(content => !content.toLowerCase().match(/temperature|humidity|wind|weather|\d+°c/))
-      .join('\n\n');
-    
-    if (cleanGeneral.trim().length > 20) {
-      finalSections.push({
-        type: 'general',
-        title: 'Additional Information',
-        content: cleanGeneral
-      });
-    }
-  }
-
-  // If we don't have enough sections or sectioning failed, show original content cleanly
-  if (finalSections.length <= 1) {
-    // But still clean out weather data from the fallback
-    const cleanedFallback = cleanText
-      .replace(/\*\*Mumbai\*\*[\s\S]*?wind speed/gi, '')
-      .replace(/\*\*Delhi\*\*[\s\S]*?wind speed/gi, '')
-      .replace(/\*\*Bangalore\*\*[\s\S]*?wind speed/gi, '')
-      .replace(/This weather information[\s\S]*?attractions\./gi, '')
-      .trim();
-    
-    return [(
-      <div key="original" className="mb-6 p-6 rounded-lg shadow-lg border-l-4 bg-gray-50 border-gray-500">
-        <div className="flex items-center mb-4">
-          <span className="text-4xl mr-4 text-gray-600">📋</span>
+  return [(
+    <div key="travel-advisory" className={`mb-6 p-6 rounded-lg shadow-lg border-l-4 ${styling.bgColor} ${styling.borderColor}`}>
+      <div className="flex items-center mb-4">
+        <span className="text-4xl mr-4">{styling.icon}</span>
+        <div className="flex-1">
           <h3 className="font-bold text-xl text-gray-800">Travel Advisory Information</h3>
-        </div>
-        <div className="text-gray-700 leading-relaxed text-base whitespace-pre-wrap">
-          {cleanedFallback}
+          {advisoryLevel && (
+            <div className={`inline-block mt-2 px-4 py-2 rounded-full ${styling.levelBg} ${styling.levelText} font-semibold text-sm`}>
+              {advisoryLevel}
+            </div>
+          )}
         </div>
       </div>
-    )];
-  }
-
-  // Render sections with minimal formatting to preserve accuracy
-  return finalSections.map((section, index) => {
-    const sectionStyle = "mb-6 p-6 rounded-lg shadow-lg border-l-4";
-    const headerStyle = "flex items-center mb-4";
-    const iconStyle = "text-4xl mr-4";
-    const titleStyle = "font-bold text-xl";
-
-    // Simple content rendering that preserves original text
-    const renderContent = (content: string) => {
-      return (
-        <div className="text-gray-700 leading-relaxed text-base whitespace-pre-wrap">
-          {content}
-        </div>
-      );
-    };
-
-    switch (section.type) {
-      case 'level':
-        return (
-          <div key={index} className={`${sectionStyle} bg-red-50 border-red-500`}>
-            <div className={headerStyle}>
-              <span className={`${iconStyle} text-red-600`}>🚨</span>
-              <h3 className={`${titleStyle} text-red-800`}>{section.title}</h3>
-            </div>
-            <div className="bg-red-100 p-4 rounded-lg font-semibold text-red-900 text-lg">
-              {section.content}
-            </div>
-          </div>
-        );
-
-      case 'safety':
-        return (
-          <div key={index} className={`${sectionStyle} bg-yellow-50 border-yellow-500`}>
-            <div className={headerStyle}>
-              <span className={`${iconStyle} text-yellow-600`}>🔐</span>
-              <h3 className={`${titleStyle} text-yellow-800`}>{section.title}</h3>
-            </div>
-            {renderContent(section.content)}
-          </div>
-        );
-
-      case 'security':
-        return (
-          <div key={index} className={`${sectionStyle} bg-orange-50 border-orange-500`}>
-            <div className={headerStyle}>
-              <span className={`${iconStyle} text-orange-600`}>⚠️</span>
-              <h3 className={`${titleStyle} text-orange-800`}>{section.title}</h3>
-            </div>
-            {renderContent(section.content)}
-          </div>
-        );
-
-      case 'recommendations':
-        return (
-          <div key={index} className={`${sectionStyle} bg-blue-50 border-blue-500`}>
-            <div className={headerStyle}>
-              <span className={`${iconStyle} text-blue-600`}>💡</span>
-              <h3 className={`${titleStyle} text-blue-800`}>{section.title}</h3>
-            </div>
-            {renderContent(section.content)}
-          </div>
-        );
-
-      case 'regional':
-        return (
-          <div key={index} className={`${sectionStyle} bg-purple-50 border-purple-500`}>
-            <div className={headerStyle}>
-              <span className={`${iconStyle} text-purple-600`}>🌍</span>
-              <h3 className={`${titleStyle} text-purple-800`}>{section.title}</h3>
-            </div>
-            {renderContent(section.content)}
-          </div>
-        );
-
-      case 'health':
-        return (
-          <div key={index} className={`${sectionStyle} bg-green-50 border-green-500`}>
-            <div className={headerStyle}>
-              <span className={`${iconStyle} text-green-600`}>🏥</span>
-              <h3 className={`${titleStyle} text-green-800`}>{section.title}</h3>
-            </div>
-            {renderContent(section.content)}
-          </div>
-        );
-
-      case 'entry':
-        return (
-          <div key={index} className={`${sectionStyle} bg-pink-50 border-pink-500`}>
-            <div className={headerStyle}>
-              <span className={`${iconStyle} text-pink-600`}>🛂</span>
-              <h3 className={`${titleStyle} text-pink-800`}>{section.title}</h3>
-            </div>
-            {renderContent(section.content)}
-          </div>
-        );
-
-      default:
-        return (
-          <div key={index} className={`${sectionStyle} bg-gray-50 border-gray-500`}>
-            <div className={headerStyle}>
-              <span className={`${iconStyle} text-gray-600`}>📋</span>
-              <h3 className={`${titleStyle} text-gray-800`}>{section.title}</h3>
-            </div>
-            {renderContent(section.content)}
-          </div>
-        );
-    }
-  });
+      <div className="text-gray-700 leading-relaxed text-base whitespace-pre-wrap">
+        {cleanText}
+      </div>
+    </div>
+  )];
 }
+
+
 
 // Function to format weather information for better readability
 function formatWeatherText(text: string) {
@@ -298,7 +114,7 @@ function formatWeatherText(text: string) {
     .split('\n')
     .filter(line => line.includes('°C') && line.includes(':'))
     .map(line => line.trim())
-    .map(line => line.replace(/\*\*/g, '')); // Remove markdown bold formatting
+    .map(line => line.replace(/\*\*/g, '').replace(/^\*\*|\*\*$/g, '').replace(/^\*|\*$/g, '')); // Remove all markdown formatting
   
   // Extract the description line
   const descriptionMatch = text.match(/This weather information[^.]*\./);
@@ -318,7 +134,12 @@ function formatWeatherText(text: string) {
           if (parts.length < 2) return null;
           
           // Clean the city name of any remaining formatting characters
-          const city = parts[0].trim().replace(/\*\*/g, '').replace(/^-\s*/, '').trim();
+          const city = parts[0].trim()
+            .replace(/\*\*/g, '') // Remove bold markdown
+            .replace(/\*/g, '') // Remove italic markdown  
+            .replace(/^-\s*/, '') // Remove leading dashes
+            .replace(/^#+\s*/, '') // Remove heading markdown
+            .trim();
           const weatherInfo = parts.slice(1).join(':').trim();
           
           // Extract temperature
@@ -340,10 +161,16 @@ function formatWeatherText(text: string) {
           // Get weather icon based on condition
           const getWeatherIcon = (condition: string) => {
             const lowerCondition = condition.toLowerCase();
-            if (lowerCondition.includes('sunny') || lowerCondition.includes('clear')) return '☀️';
-            if (lowerCondition.includes('cloudy')) return '☁️';
-            if (lowerCondition.includes('partly')) return '⛅';
-            if (lowerCondition.includes('rainy') || lowerCondition.includes('rain')) return '🌧️';
+            if (lowerCondition.includes('clear sky') || lowerCondition.includes('sunny')) return '☀️';
+            if (lowerCondition.includes('clear night')) return '🌙';
+            if (lowerCondition.includes('mainly clear')) return '🌤️';
+            if (lowerCondition.includes('partly cloudy')) return '⛅';
+            if (lowerCondition.includes('overcast') || lowerCondition.includes('cloudy')) return '☁️';
+            if (lowerCondition.includes('fog')) return '🌫️';
+            if (lowerCondition.includes('drizzle')) return '🌦️';
+            if (lowerCondition.includes('rain') || lowerCondition.includes('showers')) return '🌧️';
+            if (lowerCondition.includes('snow')) return '❄️';
+            if (lowerCondition.includes('thunderstorm')) return '⛈️';
             return '🌤️';
           };
           
@@ -420,24 +247,49 @@ export default function AgentChat() {
                   ? "text-white" 
                   : "text-gray-800"
               }`}>
-                {message.role === "assistant" && message.content.includes("Travel Advisory") ? (
-                  <div className="space-y-4">
-                    {formatTravelAdvisoryText(message.content)}
-                    {message.content.includes("Current Weather Conditions") && (
-                      <div className="mt-8 pt-6 border-t border-gray-200">
+                {(() => {
+                  // Check for travel advisory with weather
+                  if (message.role === "assistant" && message.content.includes("Travel Advisory")) {
+                    // More robust weather detection
+                    const hasWeatherData = message.content.includes("Current Weather Conditions") || 
+                                         message.content.includes("Weather data retrieved") ||
+                                         (message.content.includes("°C") && 
+                                          (message.content.includes("Humidity") || 
+                                           message.content.includes("Wind") ||
+                                           message.content.includes("weather information can help")));
+                    
+                    return (
+                      <div className="space-y-4">
+                        {formatTravelAdvisoryText(message.content)}
+                        {hasWeatherData && (
+                          <div className="mt-8 pt-6 border-t border-gray-200">
+                            {formatWeatherText(message.content)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  
+                  // Check for standalone weather
+                  if (message.role === "assistant" && 
+                      (message.content.includes("Current Weather Conditions") || 
+                       message.content.includes("Weather data retrieved") ||
+                       (message.content.includes("°C") && message.content.includes("Humidity"))) && 
+                      !message.content.includes("Travel Advisory")) {
+                    return (
+                      <div className="space-y-4">
                         {formatWeatherText(message.content)}
                       </div>
-                    )}
-                  </div>
-                ) : message.role === "assistant" && message.content.includes("Current Weather Conditions") && !message.content.includes("Travel Advisory") ? (
-                  <div className="space-y-4">
-                    {formatWeatherText(message.content)}
-                  </div>
-                ) : (
-                  <div className="leading-relaxed whitespace-pre-wrap text-base">
-                    {message.content}
-                  </div>
-                )}
+                    );
+                  }
+                  
+                  // Default text rendering
+                  return (
+                    <div className="leading-relaxed whitespace-pre-wrap text-base">
+                      {message.content}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
