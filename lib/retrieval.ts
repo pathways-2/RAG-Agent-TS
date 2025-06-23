@@ -15,7 +15,7 @@ export class RetrievalService {
 
   async retrieveContext(query: string): Promise<RetrievalResult> {
     try {
-      const documents = await this.vectorizeService.retrieveDocuments(query);
+      const documents = await this.vectorizeService.retrieveDocuments(query, 15);
       const contextDocuments =
         this.vectorizeService.formatDocumentsForContext(documents);
       const sources =
