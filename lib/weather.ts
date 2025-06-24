@@ -380,7 +380,6 @@ export function getTopCities(country: string): string[] {
     "philipines": ["Manila", "Quezon City", "Davao"],
     "phillippines": ["Manila", "Quezon City", "Davao"],
     "viet nam": ["Ho Chi Minh City", "Hanoi", "Da Nang"],
-    "laos": ["Vientiane", "Luang Prabang", "Savannakhet"],
     "lao": ["Vientiane", "Luang Prabang", "Savannakhet"],
     "kampuchea": ["Phnom Penh", "Siem Reap", "Battambang"],
     "khmer republic": ["Phnom Penh", "Siem Reap", "Battambang"],
