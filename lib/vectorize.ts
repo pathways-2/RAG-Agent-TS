@@ -53,8 +53,8 @@ export class VectorizeService {
     );
 
     // Remove duplicate content and format documents with clear section breaks
-    const seenContent = new Set();
-    const uniqueDocs = [];
+    const seenContent = new Set<string>();
+    const uniqueDocs: Array<VectorizeDocument & { text: string }> = [];
 
     for (const doc of sortedDocs) {
       // Clean up the text while preserving important content
@@ -65,16 +65,8 @@ export class VectorizeService {
       // Create a normalized version for duplicate detection
       const normalizedText = cleanText.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ');
       
-      // Only include if we haven't seen very similar content
-      let isDuplicate = false;
-      for (const seenText of seenContent) {
-        if (this.calculateSimilarity(normalizedText, seenText) > 0.8) {
-          isDuplicate = true;
-          break;
-        }
-      }
-
-      if (!isDuplicate) {
+      // Only include if we haven't seen this exact content before
+      if (!seenContent.has(normalizedText)) {
         seenContent.add(normalizedText);
         uniqueDocs.push({
           ...doc,
@@ -91,21 +83,7 @@ export class VectorizeService {
       .join('\n\n==========\n\n');
   }
 
-  // Simple similarity calculation to detect near-duplicate content
-  private calculateSimilarity(text1: string, text2: string): number {
-    const words1 = text1.split(' ');
-    const words2 = text2.split(' ');
-    const allWords = new Set([...words1, ...words2]);
-    
-    let commonWords = 0;
-    allWords.forEach((word: string) => {
-      if (words1.includes(word) && words2.includes(word)) {
-        commonWords++;
-      }
-    });
-    
-    return commonWords / allWords.size;
-  }
+
 
   convertDocumentsToChatSources(documents: VectorizeDocument[]): ChatSource[] {
     return documents.map((doc) => ({
