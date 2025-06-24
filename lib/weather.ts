@@ -367,7 +367,6 @@ export function getTopCities(country: string): string[] {
     "zaire": ["Kinshasa", "Lubumbashi", "Mbuji-Mayi"],
     "rhodesia": ["Harare", "Bulawayo", "Chitungwiza"],
     "abyssinia": ["Addis Ababa", "Dire Dawa", "Mekelle"],
-    "persia": ["Tehran", "Mashhad", "Isfahan"],
     "formosa": ["Taipei", "Kaohsiung", "Taichung"],
     "taiwan": ["Taipei", "Kaohsiung", "Taichung"],
     "republic of china": ["Taipei", "Kaohsiung", "Taichung"],
